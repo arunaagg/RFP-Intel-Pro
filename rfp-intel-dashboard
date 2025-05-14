@@ -1,0 +1,66 @@
+// RFP Intel Pro MVP - React + Tailwind + Supabase Auth
+
+// This is the main app file structure using Next.js
+// We will include: Auth, Dashboard, Admin panel, and RFP card components
+
+import { useEffect, useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { RFPCard } from '@/components/RFPCard';
+import { FilterPanel } from '@/components/FilterPanel';
+import { AdminPanel } from '@/components/AdminPanel';
+import { Auth } from '@supabase/auth-ui-react';
+import { ThemeSupa } from '@supabase/auth-ui-shared';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
+
+export default function Home() {
+  const [session, setSession] = useState(null);
+  const [rfps, setRFPs] = useState([]);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (session) {
+      fetchRFPs();
+    }
+  }, [session]);
+
+  async function fetchRFPs() {
+    const { data, error } = await supabase.from('rfps').select('*').order('due_date', { ascending: true });
+    if (!error) {
+      setRFPs(data);
+    }
+  }
+
+  if (!session) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Auth supabaseClient={supabase} appearance={{ theme: ThemeSupa }} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen p-4 bg-gray-100">
+      <div className="text-2xl font-bold mb-4">RFP Intel Dashboard</div>
+      <FilterPanel />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {rfps.map((rfp) => (
+          <RFPCard key={rfp.id} rfp={rfp} />
+        ))}
+      </div>
+      {session.user.email === 'youradmin@email.com' && <AdminPanel supabase={supabase} onRFPAdded={fetchRFPs} />}
+    </div>
+  );
+}
